@@ -25,8 +25,14 @@ spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
 
 def get_spotify_link(song_name, artist):
     try:
-        query = f"track:{song_name} artist:{artist}"
+        # Try exact match first
+        query = f"track:\"{song_name}\" artist:\"{artist}\""
         results = spotify.search(q=query, type='track', limit=1)
+        
+        if not results['tracks']['items']:
+            # Try more lenient search
+            query = f"{song_name} {artist}"
+            results = spotify.search(q=query, type='track', limit=1)
         
         if results['tracks']['items']:
             track = results['tracks']['items'][0]
@@ -35,7 +41,8 @@ def get_spotify_link(song_name, artist):
                 'preview_url': track.get('preview_url'),
                 'duration_ms': track['duration_ms'],
                 'verified_name': track['name'],
-                'verified_artist': track['artists'][0]['name']
+                'verified_artist': track['artists'][0]['name'],
+                'popularity': track['popularity']
             }
         return None
     except Exception as e:
@@ -74,9 +81,9 @@ def adjust_section_times(duration):
 def get_claude_recommendations(theme, class_duration):
     section_times = adjust_section_times(class_duration)
     
-    prompt = f"""Create a yoga playlist using ONLY REAL songs that exist on Spotify for a {class_duration}-minute class with theme: {theme}.
-
-Return a JSON object with this structure:
+    prompt = f"""Create a yoga playlist using ONLY REAL, POPULAR songs that definitely exist on Spotify for a {class_duration}-minute class with theme: {theme}. 
+    
+Return a JSON object with ALL of these exact sections, maintaining this exact structure:
 
 {{
   "sections": {{
@@ -92,22 +99,83 @@ Return a JSON object with this structure:
         }}
       ]
     }},
-    ...remaining sections...
+    "Sun Salutations": {{
+      "duration": "{section_times['Sun Salutations']} minutes",
+      "section_intensity": "2-3",
+      "songs": [
+        {{
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "intensity": 2,
+          "reason": "Brief reason for choice"
+        }}
+      ]
+    }},
+    "Movement Series 1": {{
+      "duration": "{section_times['Movement Series 1']} minutes",
+      "section_intensity": "2-3",
+      "songs": [
+        {{
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "intensity": 2,
+          "reason": "Brief reason for choice"
+        }}
+      ]
+    }},
+    "Movement Series 2": {{
+      "duration": "{section_times['Movement Series 2']} minutes",
+      "section_intensity": "3-4",
+      "songs": [
+        {{
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "intensity": 3,
+          "reason": "Brief reason for choice"
+        }}
+      ]
+    }},
+    "Integration Series": {{
+      "duration": "{section_times['Integration Series']} minutes",
+      "section_intensity": "2-3",
+      "songs": [
+        {{
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "intensity": 2,
+          "reason": "Brief reason for choice"
+        }}
+      ]
+    }},
+    "Savasana": {{
+      "duration": "{section_times['Savasana']} minutes",
+      "section_intensity": "1-2",
+      "songs": [
+        {{
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "intensity": 1,
+          "reason": "Brief reason for choice"
+        }}
+      ]
+    }}
   }}
 }}
 
-Requirements:
-1. Use ONLY real songs that exist on Spotify
-2. Include 2-3 songs per section
-3. Match intensity to section requirements
-4. Don't invent or modify any song details"""
+Critical Requirements:
+1. Include ALL sections exactly as shown above
+2. Use ONLY well-known songs that definitely exist on Spotify
+3. For each section, include 2-3 popular songs that match the intensity
+4. Verify each song name and artist name is accurate
+5. Double-check spelling of both song and artist names
+6. Choose songs that are relatively popular and easy to find"""
 
     try:
         message = anthropic_client.beta.messages.create(
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a yoga music expert. Recommend only real songs that exist on Spotify.",
+            system="You are a yoga music expert. Recommend only popular, well-known songs that definitely exist on Spotify. Focus on songs with over 1 million plays.",
             messages=[{"role": "user", "content": prompt}]
         )
         
@@ -121,6 +189,17 @@ Requirements:
             json_str = response_text[json_start:json_end]
             parsed_json = json.loads(json_str)
             
+            # Verify all required sections are present
+            required_sections = [
+                "Grounding & Warm Up", "Sun Salutations", "Movement Series 1",
+                "Movement Series 2", "Integration Series", "Savasana"
+            ]
+            
+            for section in required_sections:
+                if section not in parsed_json["sections"]:
+                    st.error(f"Missing required section: {section}")
+                    return None
+            
             # Enhance the recommendations with Spotify data
             for section in parsed_json['sections'].values():
                 for song in section['songs']:
@@ -131,6 +210,7 @@ Requirements:
                         song['length'] = f"{spotify_data['duration_ms'] // 60000}:{(spotify_data['duration_ms'] % 60000 // 1000):02d}"
                         song['verified_name'] = spotify_data['verified_name']
                         song['verified_artist'] = spotify_data['verified_artist']
+                        song['popularity'] = spotify_data['popularity']
                     else:
                         st.warning(f"Couldn't find '{song['name']}' by {song['artist']} on Spotify")
             
@@ -152,16 +232,21 @@ def main():
         .stAlert {border-radius: 10px;}
         .stProgress .st-bp {background-color: #9DB5B2;}
         div[data-testid="stExpander"] {border-radius: 10px; border: 1px solid #ddd;}
-        .spotify-link {
-            color: #1DB954 !important;
+        .spotify-button {
+            background-color: #1DB954;
+            color: white !important;
+            padding: 4px 12px;
+            border-radius: 20px;
             text-decoration: none;
             font-weight: 500;
             display: inline-flex;
             align-items: center;
             gap: 4px;
+            transition: all 0.2s ease;
         }
-        .spotify-link:hover {
-            text-decoration: underline;
+        .spotify-button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
         }
         .stDataFrame {
             font-size: 14px;
@@ -234,7 +319,7 @@ def main():
                     'length': song.get('length', 'N/A'),
                     'intensity': song['intensity'],
                     'reason': song['reason'],
-                    'spotify': f"[🎵 Listen]({song['spotify_url']})" if 'spotify_url' in song else 'Not found'
+                    'spotify': song.get('spotify_url', '#')
                 } for song in details['songs']])
                 
                 st.dataframe(
@@ -252,7 +337,11 @@ def main():
                             format="%d ⚡"
                         ),
                         "reason": st.column_config.TextColumn("Why This Song"),
-                        "spotify": st.column_config.LinkColumn("Listen on Spotify")
+                        "spotify": st.column_config.LinkColumn(
+                            "Listen on Spotify",
+                            help="Click to open in Spotify",
+                            display_text="🎵 Play"
+                        )
                     }
                 )
                 
