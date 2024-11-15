@@ -39,7 +39,15 @@ def adjust_section_times(duration):
 def get_claude_recommendations(theme, class_duration):
     section_times = adjust_section_times(class_duration)
     
-    prompt = f"""Create a yoga playlist for a {class_duration}-minute class with theme: {theme}. Return ONLY a JSON object like this example (replace example values with real songs that match the theme):
+    prompt = f"""You will create a yoga playlist using ONLY REAL songs that actually exist, with their correct Spotify and YouTube URLs. Create a playlist for a {class_duration}-minute class with theme: {theme}.
+
+Your task:
+1. Choose ONLY real songs that exist on both Spotify and YouTube
+2. Use actual Spotify and YouTube URLs - no placeholder URLs
+3. Verify song lengths are accurate
+4. Double-check artist names are correct
+
+Return a JSON object with this structure:
 
 {{
   "sections": {{
@@ -48,13 +56,22 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "1-2",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 1,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
+        }},
+        {{
+          "name": "[Another Real Song]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
+          "intensity": 2,
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }},
@@ -63,13 +80,13 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "2-3",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 2,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }},
@@ -78,13 +95,13 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "2-3",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 2,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }},
@@ -93,13 +110,13 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "3-4",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 3,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }},
@@ -108,13 +125,13 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "2-3",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 2,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }},
@@ -123,48 +140,49 @@ def get_claude_recommendations(theme, class_duration):
       "section_intensity": "1-2",
       "songs": [
         {{
-          "name": "Example Song",
-          "artist": "Example Artist",
-          "length": "03:30",
+          "name": "[Real Song Name]",
+          "artist": "[Actual Artist]",
+          "length": "[Actual Length]",
           "intensity": 1,
-          "reason": "Brief reason",
-          "spotify_url": "https://open.spotify.com/track/example",
-          "youtube_url": "https://youtube.com/watch?v=example"
+          "reason": "Brief reason for choice",
+          "spotify_url": "[Actual Spotify URL]",
+          "youtube_url": "[Actual YouTube URL]"
         }}
       ]
     }}
   }}
 }}
 
-Requirements:
-1. Include 2-3 songs per section that fit the time limit
-2. Each song should have working Spotify and YouTube links
-3. Song intensity should match section_intensity
-4. Use MM:SS format for length
-5. Keep reasons brief and relevant"""
+Critical requirements:
+1. Use ONLY real, existing songs
+2. Include actual, working Spotify and YouTube URLs
+3. Verify all song information is accurate
+4. Include 2-3 songs per section that fit the time limit
+5. Don't invent or modify any song details"""
 
     try:
         message = anthropic_client.beta.messages.create(
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a yoga music expert. Return ONLY valid JSON with no additional text.",
+            system="You are a specialized yoga music expert with extensive knowledge of real songs. ONLY recommend real songs that actually exist with their correct URLs. Never invent or modify song details. If you're not completely certain about a song's details or URLs, exclude it.",
             messages=[{"role": "user", "content": prompt}]
         )
         
-        # Clean and parse JSON
         response_text = message.content[0].text.strip()
-        
-        # Remove any potential markdown code block markers
         response_text = response_text.replace('```json', '').replace('```', '').strip()
-        
-        # Find the actual JSON content
         json_start = response_text.find('{')
         json_end = response_text.rfind('}') + 1
+        
         if json_start >= 0 and json_end > json_start:
             json_str = response_text[json_start:json_end]
+            json_str = json_str.strip()
+            
             try:
                 parsed_json = json.loads(json_str)
+                if "sections" not in parsed_json:
+                    st.error("Invalid response structure: missing 'sections' key")
+                    return None
                 return parsed_json
             except json.JSONDecodeError as e:
                 st.error(f"Invalid JSON structure: {str(e)}")
@@ -199,12 +217,13 @@ def main():
             text-decoration: none;
             font-size: 12px;
             font-weight: 500;
-            transition: opacity 0.2s;
+            transition: all 0.2s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .song-link:hover {
             opacity: 0.9;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
         }
         .spotify-link {
             background-color: #1DB954;
@@ -225,6 +244,10 @@ def main():
         .song-links {
             margin-bottom: 12px;
             padding-left: 8px;
+        }
+        .artist-name {
+            color: #666;
+            font-size: 0.9em;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -313,7 +336,10 @@ def main():
                 # Display music platform links
                 for song in details['songs']:
                     st.markdown(f"""
-                        <div class="song-title">{song['name']} by {song['artist']}</div>
+                        <div class="song-title">
+                            {song['name']}
+                            <span class="artist-name">by {song['artist']}</span>
+                        </div>
                         <div class="song-links">
                             <a href="{song['spotify_url']}" target="_blank" class="song-link spotify-link">
                                 ▶️ Listen on Spotify
