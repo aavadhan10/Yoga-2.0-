@@ -4,8 +4,43 @@ from anthropic import Anthropic
 import json
 from datetime import datetime
 import os
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+from dotenv import load_dotenv
 
-anthropic_client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+# Get credentials from environment or Streamlit secrets
+spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID') or st.secrets['SPOTIFY_CLIENT_ID']
+spotify_client_secret = os.getenv('SPOTIFY_CLIENT_SECRET') or st.secrets['SPOTIFY_CLIENT_SECRET']
+anthropic_api_key = os.getenv('ANTHROPIC_API_KEY') or st.secrets['ANTHROPIC_API_KEY']
+
+# Initialize clients
+anthropic_client = Anthropic(api_key=anthropic_api_key)
+spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
+    client_id=spotify_client_id,
+    client_secret=spotify_client_secret
+))
+
+def get_spotify_link(song_name, artist):
+    try:
+        query = f"track:{song_name} artist:{artist}"
+        results = spotify.search(q=query, type='track', limit=1)
+        
+        if results['tracks']['items']:
+            track = results['tracks']['items'][0]
+            return {
+                'url': track['external_urls']['spotify'],
+                'preview_url': track.get('preview_url'),
+                'duration_ms': track['duration_ms'],
+                'verified_name': track['name'],
+                'verified_artist': track['artists'][0]['name']
+            }
+        return None
+    except Exception as e:
+        st.error(f"Error fetching Spotify data: {str(e)}")
+        return None
 
 def adjust_section_times(duration):
     if duration == "45":
@@ -39,13 +74,7 @@ def adjust_section_times(duration):
 def get_claude_recommendations(theme, class_duration):
     section_times = adjust_section_times(class_duration)
     
-    prompt = f"""You will create a yoga playlist using ONLY REAL songs that actually exist, with their correct Spotify and YouTube URLs. Create a playlist for a {class_duration}-minute class with theme: {theme}.
-
-Your task:
-1. Choose ONLY real songs that exist on both Spotify and YouTube
-2. Use actual Spotify and YouTube URLs - no placeholder URLs
-3. Verify song lengths are accurate
-4. Double-check artist names are correct
+    prompt = f"""Create a yoga playlist using ONLY REAL songs that exist on Spotify for a {class_duration}-minute class with theme: {theme}.
 
 Return a JSON object with this structure:
 
@@ -58,117 +87,31 @@ Return a JSON object with this structure:
         {{
           "name": "[Real Song Name]",
           "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
           "intensity": 1,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }},
-        {{
-          "name": "[Another Real Song]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 2,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
+          "reason": "Brief reason for choice"
         }}
       ]
     }},
-    "Sun Salutations": {{
-      "duration": "{section_times['Sun Salutations']} minutes",
-      "section_intensity": "2-3",
-      "songs": [
-        {{
-          "name": "[Real Song Name]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 2,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }}
-      ]
-    }},
-    "Movement Series 1": {{
-      "duration": "{section_times['Movement Series 1']} minutes",
-      "section_intensity": "2-3",
-      "songs": [
-        {{
-          "name": "[Real Song Name]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 2,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }}
-      ]
-    }},
-    "Movement Series 2": {{
-      "duration": "{section_times['Movement Series 2']} minutes",
-      "section_intensity": "3-4",
-      "songs": [
-        {{
-          "name": "[Real Song Name]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 3,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }}
-      ]
-    }},
-    "Integration Series": {{
-      "duration": "{section_times['Integration Series']} minutes",
-      "section_intensity": "2-3",
-      "songs": [
-        {{
-          "name": "[Real Song Name]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 2,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }}
-      ]
-    }},
-    "Savasana": {{
-      "duration": "{section_times['Savasana']} minutes",
-      "section_intensity": "1-2",
-      "songs": [
-        {{
-          "name": "[Real Song Name]",
-          "artist": "[Actual Artist]",
-          "length": "[Actual Length]",
-          "intensity": 1,
-          "reason": "Brief reason for choice",
-          "spotify_url": "[Actual Spotify URL]",
-          "youtube_url": "[Actual YouTube URL]"
-        }}
-      ]
-    }}
+    ...remaining sections...
   }}
 }}
 
-Critical requirements:
-1. Use ONLY real, existing songs
-2. Include actual, working Spotify and YouTube URLs
-3. Verify all song information is accurate
-4. Include 2-3 songs per section that fit the time limit
-5. Don't invent or modify any song details"""
+Requirements:
+1. Use ONLY real songs that exist on Spotify
+2. Include 2-3 songs per section
+3. Match intensity to section requirements
+4. Don't invent or modify any song details"""
 
     try:
         message = anthropic_client.beta.messages.create(
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a specialized yoga music expert with extensive knowledge of real songs. ONLY recommend real songs that actually exist with their correct URLs. Never invent or modify song details. If you're not completely certain about a song's details or URLs, exclude it.",
+            system="You are a yoga music expert. Recommend only real songs that exist on Spotify.",
             messages=[{"role": "user", "content": prompt}]
         )
         
+        # Parse JSON response
         response_text = message.content[0].text.strip()
         response_text = response_text.replace('```json', '').replace('```', '').strip()
         json_start = response_text.find('{')
@@ -176,30 +119,30 @@ Critical requirements:
         
         if json_start >= 0 and json_end > json_start:
             json_str = response_text[json_start:json_end]
-            json_str = json_str.strip()
+            parsed_json = json.loads(json_str)
             
-            try:
-                parsed_json = json.loads(json_str)
-                if "sections" not in parsed_json:
-                    st.error("Invalid response structure: missing 'sections' key")
-                    return None
-                return parsed_json
-            except json.JSONDecodeError as e:
-                st.error(f"Invalid JSON structure: {str(e)}")
-                st.error("Please try again - the AI sometimes returns malformed responses")
-                return None
+            # Enhance the recommendations with Spotify data
+            for section in parsed_json['sections'].values():
+                for song in section['songs']:
+                    spotify_data = get_spotify_link(song['name'], song['artist'])
+                    if spotify_data:
+                        song['spotify_url'] = spotify_data['url']
+                        song['preview_url'] = spotify_data['preview_url']
+                        song['length'] = f"{spotify_data['duration_ms'] // 60000}:{(spotify_data['duration_ms'] % 60000 // 1000):02d}"
+                        song['verified_name'] = spotify_data['verified_name']
+                        song['verified_artist'] = spotify_data['verified_artist']
+                    else:
+                        st.warning(f"Couldn't find '{song['name']}' by {song['artist']} on Spotify")
+            
+            return parsed_json
+            
         else:
             st.error("Could not find valid JSON in the response")
             return None
             
     except Exception as e:
         st.error(f"Error getting recommendations: {str(e)}")
-        st.error("Please try again - the AI sometimes needs multiple attempts")
         return None
-
-def calculate_duration(length_str):
-    minutes, seconds = map(int, length_str.split(':'))
-    return minutes * 60 + seconds
 
 def main():
     st.set_page_config(page_title="Yoga Playlist Creator", page_icon="🧘‍♀️", layout="wide")
@@ -209,50 +152,24 @@ def main():
         .stAlert {border-radius: 10px;}
         .stProgress .st-bp {background-color: #9DB5B2;}
         div[data-testid="stExpander"] {border-radius: 10px; border: 1px solid #ddd;}
-        .song-link {
-            display: inline-block;
-            padding: 4px 12px;
-            margin: 2px 4px;
-            border-radius: 20px;
-            text-decoration: none;
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .song-link:hover {
-            opacity: 0.9;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            transform: translateY(-1px);
-        }
         .spotify-link {
-            background-color: #1DB954;
-            color: white !important;
-        }
-        .youtube-link {
-            background-color: #FF0000;
-            color: white !important;
-        }
-        .song-title {
+            color: #1DB954 !important;
+            text-decoration: none;
             font-weight: 500;
-            margin-top: 10px;
-            margin-bottom: 4px;
-            padding: 4px 8px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
-        .song-links {
-            margin-bottom: 12px;
-            padding-left: 8px;
+        .spotify-link:hover {
+            text-decoration: underline;
         }
-        .artist-name {
-            color: #666;
-            font-size: 0.9em;
+        .stDataFrame {
+            font-size: 14px;
         }
         </style>
     """, unsafe_allow_html=True)
     
-    st.title("🧘‍♀️ Yoga Playlist Recommender")
+    st.title("🧘‍♀️ Yoga Playlist Creator with Spotify")
     
     if 'recommendations' not in st.session_state:
         st.session_state.recommendations = None
@@ -291,7 +208,7 @@ def main():
         if not theme:
             st.error("Please enter a music theme.")
         else:
-            with st.spinner("Creating your perfect yoga playlist..."):
+            with st.spinner("Creating your perfect yoga playlist with Spotify integration..."):
                 st.session_state.recommendations = get_claude_recommendations(
                     f"{theme} {preferences}".strip(),
                     class_duration
@@ -310,10 +227,15 @@ def main():
         total_duration = 0
         for section, details in st.session_state.recommendations['sections'].items():
             with st.expander(f"🎼 {section} ({details['duration']} | Intensity: {details['section_intensity']})"):
-                # Create DataFrame with all columns except URLs
-                display_df = pd.DataFrame([{k: v for k, v in song.items() 
-                                          if k not in ['spotify_url', 'youtube_url']} 
-                                         for song in details['songs']])
+                # Create DataFrame with Spotify information
+                display_df = pd.DataFrame([{
+                    'name': song.get('verified_name', song['name']),
+                    'artist': song.get('verified_artist', song['artist']),
+                    'length': song.get('length', 'N/A'),
+                    'intensity': song['intensity'],
+                    'reason': song['reason'],
+                    'spotify': f"[🎵 Listen]({song['spotify_url']})" if 'spotify_url' in song else 'Not found'
+                } for song in details['songs']])
                 
                 st.dataframe(
                     display_df,
@@ -329,32 +251,21 @@ def main():
                             max_value=5,
                             format="%d ⚡"
                         ),
-                        "reason": st.column_config.TextColumn("Why This Song")
+                        "reason": st.column_config.TextColumn("Why This Song"),
+                        "spotify": st.column_config.LinkColumn("Listen on Spotify")
                     }
                 )
                 
-                # Display music platform links
-                for song in details['songs']:
-                    st.markdown(f"""
-                        <div class="song-title">
-                            {song['name']}
-                            <span class="artist-name">by {song['artist']}</span>
-                        </div>
-                        <div class="song-links">
-                            <a href="{song['spotify_url']}" target="_blank" class="song-link spotify-link">
-                                ▶️ Listen on Spotify
-                            </a>
-                            <a href="{song['youtube_url']}" target="_blank" class="song-link youtube-link">
-                                ▶️ Watch on YouTube
-                            </a>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                section_duration = sum(calculate_duration(song['length']) for song in details['songs'])
-                total_duration += section_duration
-                st.caption(f"Section duration: {section_duration//60}:{section_duration%60:02d}")
+                # Calculate section duration
+                if all('length' in song for song in details['songs']):
+                    section_duration = sum(int(song['length'].split(':')[0]) * 60 + 
+                                        int(song['length'].split(':')[1]) 
+                                        for song in details['songs'])
+                    total_duration += section_duration
+                    st.caption(f"Section duration: {section_duration//60}:{section_duration%60:02d}")
         
-        st.success(f"Total Playlist Duration: {total_duration//60} minutes {total_duration%60} seconds")
+        if total_duration > 0:
+            st.success(f"Total Playlist Duration: {total_duration//60} minutes {total_duration%60} seconds")
         
         col3, col4 = st.columns(2)
         with col3:
