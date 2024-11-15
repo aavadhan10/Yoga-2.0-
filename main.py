@@ -7,16 +7,6 @@ import os
 
 anthropic_client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-def get_bpm_range(intensity):
-    bpm_ranges = {
-        1: "60-70 BPM",
-        2: "70-80 BPM",
-        3: "80-90 BPM",
-        4: "90-100 BPM",
-        5: "100-110 BPM"
-    }
-    return bpm_ranges[intensity]
-
 def adjust_section_times(duration):
     if duration == "45":
         return {
@@ -57,39 +47,87 @@ def get_claude_recommendations(theme, class_duration):
             "Grounding & Warm Up": {{
                 "duration": "{section_times['Grounding & Warm Up']} minutes",
                 "intensity": "1-2",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 1,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }},
             "Sun Salutations": {{
                 "duration": "{section_times['Sun Salutations']} minutes",
                 "intensity": "1-3",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 2,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }},
             "Movement Series 1": {{
                 "duration": "{section_times['Movement Series 1']} minutes",
                 "intensity": "2-3",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 3,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }},
             "Movement Series 2": {{
                 "duration": "{section_times['Movement Series 2']} minutes",
                 "intensity": "2-4",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 4,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }},
             "Integration Series": {{
                 "duration": "{section_times['Integration Series']} minutes",
                 "intensity": "2-4",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 3,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }},
             "Savasana": {{
                 "duration": "{section_times['Savasana']} minutes",
                 "intensity": "1-2",
-                "songs": []
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "MM:SS",
+                        "intensity": 1,
+                        "reason": "Brief explanation"
+                    }}
+                ]
             }}
         }}
     }}
 
     For each section:
     - Include 2-3 songs that fit within the section's time limit
-    - Match intensity levels
+    - Match song intensities to section intensity range (1=very calm to 5=high energy)
     - Use MM:SS format for length
     - Include brief reasoning
     """
@@ -122,7 +160,7 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     
-    st.title("🧘‍♀️ Yoga Playlist Recommender")
+    st.title("🧘‍♀️ Yoga Playlist Recommmender ")
     
     if 'recommendations' not in st.session_state:
         st.session_state.recommendations = None
@@ -180,8 +218,6 @@ def main():
         for section, details in st.session_state.recommendations['sections'].items():
             with st.expander(f"🎼 {section} ({details['duration']} | Intensity: {details['intensity']})"):
                 songs_df = pd.DataFrame(details['songs'])
-                # Add BPM range to the dataframe
-                songs_df['bpm_range'] = songs_df['intensity'].apply(get_bpm_range)
                 
                 section_duration = sum(calculate_duration(song['length']) for song in details['songs'])
                 total_duration += section_duration
@@ -190,17 +226,16 @@ def main():
                     songs_df,
                     hide_index=True,
                     column_config={
-                        "name": st.column_config.TextColumn("Title"),
+                        "name": st.column_config.TextColumn("Song"),
                         "artist": st.column_config.TextColumn("Artist"),
                         "length": st.column_config.TextColumn("Duration"),
                         "intensity": st.column_config.NumberColumn(
-                            "Song Intensity",
+                            "Intensity",
                             help="1 (very calm) to 5 (high energy)",
                             min_value=1,
                             max_value=5,
                             format="%d ⚡"
                         ),
-                        "bpm_range": st.column_config.TextColumn("BPM Range"),
                         "reason": st.column_config.TextColumn("Why This Song")
                     }
                 )
