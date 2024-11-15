@@ -51,7 +51,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist",
                         "length": "03:30",
                         "intensity": 1,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }},
@@ -64,7 +66,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist", 
                         "length": "03:30",
                         "intensity": 2,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }},
@@ -77,7 +81,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist",
                         "length": "03:30",
                         "intensity": 2,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }},
@@ -90,7 +96,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist",
                         "length": "03:30",
                         "intensity": 3,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }},
@@ -103,7 +111,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist",
                         "length": "03:30",
                         "intensity": 3,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }},
@@ -116,7 +126,9 @@ def get_claude_recommendations(theme, class_duration):
                         "artist": "Example Artist",
                         "length": "03:30",
                         "intensity": 1,
-                        "reason": "Example reason"
+                        "reason": "Example reason",
+                        "spotify_url": "https://open.spotify.com/track/...",
+                        "youtube_url": "https://youtube.com/watch?v=..."
                     }}
                 ]
             }}
@@ -128,6 +140,7 @@ def get_claude_recommendations(theme, class_duration):
     - Match song intensities (1-5) to section_intensity range
     - Use MM:SS format for length
     - Include brief reason
+    - Include valid Spotify and YouTube URLs for each song
     """
 
     try:
@@ -135,7 +148,7 @@ def get_claude_recommendations(theme, class_duration):
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a yoga music expert. Respond only with valid JSON.",
+            system="You are a yoga music expert. Do not make songs up. Respond only with valid JSON. Include actual Spotify and YouTube URLs for real songs.",
             messages=[{"role": "user", "content": prompt}]
         )
         return json.loads(message.content[0].text)
@@ -155,10 +168,26 @@ def main():
         .stAlert {border-radius: 10px;}
         .stProgress .st-bp {background-color: #9DB5B2;}
         div[data-testid="stExpander"] {border-radius: 10px; border: 1px solid #ddd;}
+        .song-link {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .spotify-link {
+            background-color: #1DB954;
+            color: white !important;
+        }
+        .youtube-link {
+            background-color: #FF0000;
+            color: white !important;
+        }
         </style>
     """, unsafe_allow_html=True)
     
-    st.title("🧘‍♀️ Yoga Playlist Recommmender ")
+    st.title("🧘‍♀️ Yoga Playlist Recommender")
     
     if 'recommendations' not in st.session_state:
         st.session_state.recommendations = None
@@ -215,13 +244,13 @@ def main():
         total_duration = 0
         for section, details in st.session_state.recommendations['sections'].items():
             with st.expander(f"🎼 {section} ({details['duration']} | Intensity: {details['section_intensity']})"):
-                songs_df = pd.DataFrame(details['songs'])
-                
-                section_duration = sum(calculate_duration(song['length']) for song in details['songs'])
-                total_duration += section_duration
+                # Create DataFrame with all columns except URLs
+                display_df = pd.DataFrame([{k: v for k, v in song.items() 
+                                          if k not in ['spotify_url', 'youtube_url']} 
+                                         for song in details['songs']])
                 
                 st.dataframe(
-                    songs_df,
+                    display_df,
                     hide_index=True,
                     column_config={
                         "name": st.column_config.TextColumn("Song"),
@@ -238,6 +267,16 @@ def main():
                     }
                 )
                 
+                # Display music platform links
+                for song in details['songs']:
+                    st.markdown(f"""
+                        **{song['name']}** - Listen on: 
+                        <a href="{song['spotify_url']}" target="_blank" class="song-link spotify-link">Spotify</a> 
+                        <a href="{song['youtube_url']}" target="_blank" class="song-link youtube-link">YouTube</a>
+                    """, unsafe_allow_html=True)
+                
+                section_duration = sum(calculate_duration(song['length']) for song in details['songs'])
+                total_duration += section_duration
                 st.caption(f"Section duration: {section_duration//60}:{section_duration%60:02d}")
         
         st.success(f"Total Playlist Duration: {total_duration//60} minutes {total_duration%60} seconds")
