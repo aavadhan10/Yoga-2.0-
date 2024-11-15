@@ -39,107 +39,59 @@ def adjust_section_times(duration):
 def get_claude_recommendations(theme, class_duration):
     section_times = adjust_section_times(class_duration)
     
-    prompt = f"""Create a playlist for a {class_duration}-minute yoga class with theme: {theme}. Return this exact JSON structure, replacing the example values:
+    # Create a template for each section's JSON structure
+    section_template = """
+        "%s": {
+            "duration": "%s minutes",
+            "section_intensity": "%s",
+            "songs": [
+                {
+                    "name": "Example Song",
+                    "artist": "Example Artist",
+                    "length": "03:30",
+                    "intensity": %d,
+                    "reason": "Example reason",
+                    "spotify_url": "https://open.spotify.com/track/example",
+                    "youtube_url": "https://youtube.com/watch?v=example"
+                }
+            ]
+        }"""
+    
+    # Build the sections object with proper formatting
+    sections = {
+        "Grounding & Warm Up": {"duration": section_times["Grounding & Warm Up"], "intensity": "1-2"},
+        "Sun Salutations": {"duration": section_times["Sun Salutations"], "intensity": "1-3"},
+        "Movement Series 1": {"duration": section_times["Movement Series 1"], "intensity": "2-3"},
+        "Movement Series 2": {"duration": section_times["Movement Series 2"], "intensity": "2-4"},
+        "Integration Series": {"duration": section_times["Integration Series"], "intensity": "2-4"},
+        "Savasana": {"duration": section_times["Savasana"], "intensity": "1-2"}
+    }
+    
+    # Build the complete prompt with properly formatted JSON
+    sections_json = ",\n".join(
+        section_template % (
+            name,
+            details["duration"],
+            details["intensity"],
+            int(details["intensity"].split("-")[0])
+        )
+        for name, details in sections.items()
+    )
+    
+    prompt = f"""Create a playlist for a {class_duration}-minute yoga class with theme: {theme}. 
+    Return a JSON object with this exact structure (replace example values):
+    
     {{
         "sections": {{
-            "Grounding & Warm Up": {{
-                "duration": "{section_times['Grounding & Warm Up']} minutes",
-                "section_intensity": "1-2",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist",
-                        "length": "03:30",
-                        "intensity": 1,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }},
-            "Sun Salutations": {{
-                "duration": "{section_times['Sun Salutations']} minutes", 
-                "section_intensity": "1-3",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist", 
-                        "length": "03:30",
-                        "intensity": 2,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }},
-            "Movement Series 1": {{
-                "duration": "{section_times['Movement Series 1']} minutes",
-                "section_intensity": "2-3",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist",
-                        "length": "03:30",
-                        "intensity": 2,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }},
-            "Movement Series 2": {{
-                "duration": "{section_times['Movement Series 2']} minutes",
-                "section_intensity": "2-4",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist",
-                        "length": "03:30",
-                        "intensity": 3,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }},
-            "Integration Series": {{
-                "duration": "{section_times['Integration Series']} minutes",
-                "section_intensity": "2-4",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist",
-                        "length": "03:30",
-                        "intensity": 3,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }},
-            "Savasana": {{
-                "duration": "{section_times['Savasana']} minutes",
-                "section_intensity": "1-2",
-                "songs": [
-                    {{
-                        "name": "Example Song",
-                        "artist": "Example Artist",
-                        "length": "03:30",
-                        "intensity": 1,
-                        "reason": "Example reason",
-                        "spotify_url": "https://open.spotify.com/track/...",
-                        "youtube_url": "https://youtube.com/watch?v=..."
-                    }}
-                ]
-            }}
+            {sections_json}
         }}
     }}
-
+    
     For each section:
     - Include 2-3 songs that fit within the section's time limit
     - Match song intensities (1-5) to section_intensity range
     - Use MM:SS format for length
-    - Include brief reason
+    - Include brief reason why the song fits
     - Include valid Spotify and YouTube URLs for each song
     """
 
@@ -148,12 +100,26 @@ def get_claude_recommendations(theme, class_duration):
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a yoga music expert. Do not make songs up. Respond only with valid JSON. Include actual Spotify and YouTube URLs for real songs.",
+            system="You are a yoga music expert. Provide real songs with actual Spotify and YouTube URLs. Respond only with valid JSON.",
             messages=[{"role": "user", "content": prompt}]
         )
-        return json.loads(message.content[0].text)
+        
+        # Add error handling for JSON parsing
+        try:
+            result = json.loads(message.content[0].text)
+            return result
+        except json.JSONDecodeError as e:
+            # Extract just the JSON portion if there's extra text
+            json_start = message.content[0].text.find("{")
+            json_end = message.content[0].text.rfind("}") + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = message.content[0].text[json_start:json_end]
+                return json.loads(json_str)
+            else:
+                raise e
+            
     except Exception as e:
-        st.error(f"Error parsing response: {str(e)}")
+        st.error(f"Error getting recommendations: {str(e)}")
         return None
 
 def calculate_duration(length_str):
