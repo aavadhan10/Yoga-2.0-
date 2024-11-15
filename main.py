@@ -39,60 +39,110 @@ def adjust_section_times(duration):
 def get_claude_recommendations(theme, class_duration):
     section_times = adjust_section_times(class_duration)
     
-    # Create a template for each section's JSON structure
-    section_template = """
-        "%s": {
-            "duration": "%s minutes",
-            "section_intensity": "%s",
-            "songs": [
-                {
-                    "name": "Example Song",
-                    "artist": "Example Artist",
-                    "length": "03:30",
-                    "intensity": %d,
-                    "reason": "Example reason",
-                    "spotify_url": "https://open.spotify.com/track/example",
-                    "youtube_url": "https://youtube.com/watch?v=example"
-                }
-            ]
-        }"""
-    
-    # Build the sections object with proper formatting
-    sections = {
-        "Grounding & Warm Up": {"duration": section_times["Grounding & Warm Up"], "intensity": "1-2"},
-        "Sun Salutations": {"duration": section_times["Sun Salutations"], "intensity": "1-3"},
-        "Movement Series 1": {"duration": section_times["Movement Series 1"], "intensity": "2-3"},
-        "Movement Series 2": {"duration": section_times["Movement Series 2"], "intensity": "2-4"},
-        "Integration Series": {"duration": section_times["Integration Series"], "intensity": "2-4"},
-        "Savasana": {"duration": section_times["Savasana"], "intensity": "1-2"}
-    }
-    
-    # Build the complete prompt with properly formatted JSON
-    sections_json = ",\n".join(
-        section_template % (
-            name,
-            details["duration"],
-            details["intensity"],
-            int(details["intensity"].split("-")[0])
-        )
-        for name, details in sections.items()
-    )
-    
     prompt = f"""Create a playlist for a {class_duration}-minute yoga class with theme: {theme}. 
-    Return a JSON object with this exact structure (replace example values):
+    Return a valid JSON object matching this exact structure (just the JSON, no other text):
     
     {{
         "sections": {{
-            {sections_json}
+            "Grounding & Warm Up": {{
+                "duration": "{section_times['Grounding & Warm Up']} minutes",
+                "section_intensity": "1-2",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 1,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }},
+            "Sun Salutations": {{
+                "duration": "{section_times['Sun Salutations']} minutes",
+                "section_intensity": "1-3",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 2,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }},
+            "Movement Series 1": {{
+                "duration": "{section_times['Movement Series 1']} minutes",
+                "section_intensity": "2-3",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 2,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }},
+            "Movement Series 2": {{
+                "duration": "{section_times['Movement Series 2']} minutes",
+                "section_intensity": "2-4",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 3,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }},
+            "Integration Series": {{
+                "duration": "{section_times['Integration Series']} minutes",
+                "section_intensity": "2-4",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 3,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }},
+            "Savasana": {{
+                "duration": "{section_times['Savasana']} minutes",
+                "section_intensity": "1-2",
+                "songs": [
+                    {{
+                        "name": "Song Name",
+                        "artist": "Artist Name",
+                        "length": "03:30",
+                        "intensity": 1,
+                        "reason": "Brief reason for song choice",
+                        "spotify_url": "https://open.spotify.com/track/example",
+                        "youtube_url": "https://youtube.com/watch?v=example"
+                    }}
+                ]
+            }}
         }}
     }}
-    
+
     For each section:
     - Include 2-3 songs that fit within the section's time limit
     - Match song intensities (1-5) to section_intensity range
     - Use MM:SS format for length
-    - Include brief reason why the song fits
-    - Include valid Spotify and YouTube URLs for each song
+    - Provide actual URLs for real songs
+    - Keep reason brief and relevant to the section
     """
 
     try:
@@ -100,23 +150,25 @@ def get_claude_recommendations(theme, class_duration):
             model="claude-3-sonnet-20240229",
             max_tokens=1500,
             temperature=0.7,
-            system="You are a yoga music expert. Provide real songs with actual Spotify and YouTube URLs. Respond only with valid JSON.",
+            system="You are a yoga music expert. Respond only with the requested JSON structure. Do not include any additional text or explanations.",
             messages=[{"role": "user", "content": prompt}]
         )
         
-        # Add error handling for JSON parsing
-        try:
-            result = json.loads(message.content[0].text)
-            return result
-        except json.JSONDecodeError as e:
-            # Extract just the JSON portion if there's extra text
-            json_start = message.content[0].text.find("{")
-            json_end = message.content[0].text.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                json_str = message.content[0].text[json_start:json_end]
-                return json.loads(json_str)
-            else:
-                raise e
+        # Clean and parse JSON
+        response_text = message.content[0].text.strip()
+        
+        # Remove any potential markdown code block markers
+        response_text = response_text.replace('```json', '').replace('```', '').strip()
+        
+        # Find the actual JSON content
+        json_start = response_text.find('{')
+        json_end = response_text.rfind('}') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_str = response_text[json_start:json_end]
+            return json.loads(json_str)
+        else:
+            st.error("Could not find valid JSON in the response")
+            return None
             
     except Exception as e:
         st.error(f"Error getting recommendations: {str(e)}")
@@ -136,11 +188,16 @@ def main():
         div[data-testid="stExpander"] {border-radius: 10px; border: 1px solid #ddd;}
         .song-link {
             display: inline-block;
-            padding: 2px 8px;
-            margin: 2px;
-            border-radius: 4px;
+            padding: 4px 12px;
+            margin: 2px 4px;
+            border-radius: 20px;
             text-decoration: none;
             font-size: 12px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .song-link:hover {
+            opacity: 0.8;
         }
         .spotify-link {
             background-color: #1DB954;
@@ -149,6 +206,11 @@ def main():
         .youtube-link {
             background-color: #FF0000;
             color: white !important;
+        }
+        .song-title {
+            font-weight: 500;
+            margin-top: 8px;
+            margin-bottom: 4px;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -236,9 +298,15 @@ def main():
                 # Display music platform links
                 for song in details['songs']:
                     st.markdown(f"""
-                        **{song['name']}** - Listen on: 
-                        <a href="{song['spotify_url']}" target="_blank" class="song-link spotify-link">Spotify</a> 
-                        <a href="{song['youtube_url']}" target="_blank" class="song-link youtube-link">YouTube</a>
+                        <div class="song-title">{song['name']} by {song['artist']}</div>
+                        <div>
+                            <a href="{song['spotify_url']}" target="_blank" class="song-link spotify-link">
+                                <span>▶️ Spotify</span>
+                            </a>
+                            <a href="{song['youtube_url']}" target="_blank" class="song-link youtube-link">
+                                <span>▶️ YouTube</span>
+                            </a>
+                        </div>
                     """, unsafe_allow_html=True)
                 
                 section_duration = sum(calculate_duration(song['length']) for song in details['songs'])
